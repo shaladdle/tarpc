@@ -40,7 +40,7 @@ impl<'a, S, St> ConnectionHandler<'a, S, St>
         let (tx, rx) = channel();
         scope.execute(move || Self::write(rx, write_stream));
         loop {
-            match read_stream.deserialize() {
+            match Packet::deserialize(read_stream) {
                 Ok(Packet { rpc_id, message, }) => {
                     let tx = tx.clone();
                     scope.execute(move || {
@@ -94,7 +94,7 @@ impl<'a, S, St> ConnectionHandler<'a, S, St>
                     return;
                 }
                 Ok(reply_packet) => {
-                    if let Err(e) = stream.serialize(&reply_packet) {
+                    if let Err(e) = reply_packet.serialize(stream) {
                         warn!("Writer: failed to write reply to Client: {:?}", e);
                     }
                 }

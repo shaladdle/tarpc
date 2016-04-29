@@ -40,10 +40,12 @@
 //! }
 //! ```
 
+#![feature(specialization)]
 #![deny(missing_docs)]
 
 extern crate serde;
 extern crate bincode;
+extern crate byteorder;
 #[macro_use]
 extern crate log;
 extern crate scoped_pool;

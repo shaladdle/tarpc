@@ -11,6 +11,7 @@ use std::io::{self, Read, Write};
 use std::convert;
 use std::sync::Arc;
 use std::time::Duration;
+use byteorder::{BigEndian, ByteOrder};
 
 mod client;
 mod server;
@@ -70,23 +71,49 @@ pub struct Config {
 /// Return type of rpc calls: either the successful return value, or a client error.
 pub type Result<T> = ::std::result::Result<T, Error>;
 
-trait Deserialize: Read + Sized {
-    fn deserialize<T: serde::Deserialize>(&mut self) -> Result<T> {
-        deserialize_from(self, SizeLimit::Infinite).map_err(Error::from)
+trait Deserialize: serde::Deserialize {
+    fn deserialize<T: Read + Sized>(stream: &mut T) -> Result<Self>;
+}
+
+impl<R: serde::Deserialize> Deserialize for R {
+    default fn deserialize<T: Read + Sized>(stream: &mut T) -> Result<Self> {
+        deserialize_from(stream, SizeLimit::Infinite).map_err(Error::from)
     }
 }
 
-impl<R: Read> Deserialize for R {}
+impl Deserialize for Vec<u8> {
+    default fn deserialize<T: Read + Sized>(stream: &mut T) -> Result<Self> {
+        let mut size_buf = [0u8; 4];
+        try!(stream.read_exact(&mut size_buf[..]));
+        let size = BigEndian::read_u32(&size_buf[..]);
+        let mut data = vec![0; size as usize];
+        try!(stream.read_exact(&mut data[..]));
+        Ok(data)
+    }
+}
 
-trait Serialize: Write + Sized {
-    fn serialize<T: serde::Serialize>(&mut self, value: &T) -> Result<()> {
-        try!(serialize_into(self, value, SizeLimit::Infinite));
-        try!(self.flush());
+trait Serialize: serde::Serialize {
+    fn serialize<T: Write + Sized>(&self, stream: &mut T) -> Result<()>;
+}
+
+impl<W: serde::Serialize> Serialize for W {
+    default fn serialize<T: Write + Sized>(&self, stream: &mut T) -> Result<()> {
+        try!(serialize_into(stream, self, SizeLimit::Infinite));
+        try!(stream.flush());
         Ok(())
     }
 }
 
-impl<W: Write> Serialize for W {}
+impl Serialize for Vec<u8> {
+    fn serialize<T: Write + Sized>(&self, stream: &mut T) -> Result<()> {
+        let mut size_vec = vec![0u8; 4];
+        BigEndian::write_u32(&mut size_vec[..], self.len() as u32);
+        try!(stream.write_all(&size_vec[..]));
+        try!(stream.write_all(&self[..]));
+        try!(stream.flush());
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod test {
