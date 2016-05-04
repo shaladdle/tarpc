@@ -38,7 +38,7 @@ fn bench_tarpc(target: u64) {
         nread += CHUNK_SIZE as u64;
     }
     let duration = time::Instant::now() - start;
-    println!("TCP:   {}MB/s",
+    println!("TARPC: {}MB/s",
              (target as f64 / (1024f64 * 1024f64)) /
              (duration.as_secs() as f64 + duration.subsec_nanos() as f64 / 10E9));
 }
