@@ -1,18 +1,15 @@
-extern crate rand;
+#[macro_use]
+extern crate tarpc;
 
-#[macro_use] extern crate tarpc;
-
-use rand::Rng;
 use std::time;
 use std::net;
 use std::thread;
 use std::io::{Read, Write};
 
 fn gen_vec(size: usize) -> Vec<u8> {
-    let mut rng = rand::thread_rng();
     let mut vec: Vec<u8> = Vec::with_capacity(size);
-    for _ in 0..size {
-        vec.push(rng.gen());
+    for i in 0..size {
+        vec.push((i % 1 << 8) as u8);
     }
     vec
 }
@@ -41,14 +38,16 @@ fn bench_tarpc(target: u64) {
         nread += CHUNK_SIZE as u64;
     }
     let duration = time::Instant::now() - start;
-    println!("TARPC: {}MB/s",  (target / (1024 * 1024)) as u64 / duration.as_secs());
+    println!("TARPC: {}MB/s",
+             (target as f64 / (1024f64 * 1024f64)) /
+             (duration.as_secs() as f64 + duration.subsec_nanos() as f64 / 10E9));
 }
 
 fn bench_tcp(target: u64) {
     let l = net::TcpListener::bind("0.0.0.0:0").unwrap();
     let addr = l.local_addr().unwrap();
     thread::spawn(move || {
-        let (mut stream, _) = l.accept() .unwrap();
+        let (mut stream, _) = l.accept().unwrap();
         let mut vec = gen_vec(CHUNK_SIZE as usize);
         while let Ok(_) = stream.write_all(&vec[..]) {
             vec = gen_vec(CHUNK_SIZE as usize);
@@ -63,11 +62,9 @@ fn bench_tcp(target: u64) {
         nread += CHUNK_SIZE as u64;
     }
     let duration = time::Instant::now() - start;
-    if duration.as_secs() == 0 {
-        println!("TCP:   {:?}",  duration);
-    } else {
-        println!("TCP:   {}MB/s",  (target / (1024 * 1024)) as u64 / duration.as_secs());
-    }
+    println!("TCP:   {}MB/s",
+             (target as f64 / (1024f64 * 1024f64)) /
+             (duration.as_secs() as f64 + duration.subsec_nanos() as f64 / 10E9));
 }
 
 fn main() {
